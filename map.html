@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Suvathikan Weather Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body { margin:0; font-family: Arial, sans-serif; background:#0d0d0d; color:#fff; }
+        #map { width:100%; height:100vh; }
+
+        /* WEATHER BOX */
+        .weather-box {
+            position: fixed;
+            bottom:20px;
+            left:20px;
+            padding:16px;
+            background: rgba(0,0,0,0.7);
+            border-radius:12px;
+            width:300px;
+            backdrop-filter: blur(10px);
+            z-index:1500;
+        }
+        .weather-box h2{ margin-top:0; color:#00eaff; }
+        .weather-box p{ margin:4px 0; }
+
+        /* SETTINGS PANEL */
+        .settings-box {
+            position: fixed;
+            top:20px;
+            left:20px;
+            padding:16px;
+            background: rgba(0,0,0,0.7);
+            border-radius:14px;
+            width:250px;
+            backdrop-filter: blur(10px);
+            z-index:1600;
+        }
+        .settings-box h3 { margin:0 0 12px 0; color:#ffd700; font-size:18px; }
+        .settings-box label { display:block; margin:6px 0; cursor:pointer; }
+
+        /* Logo inside settings */
+        .settings-box .logo { text-align:center; margin-bottom:10px; }
+        .settings-box .logo img { width:120px; height:auto; border-radius:8px; }
+
+        /* Contact info */
+        .contact { font-size:13px; color:#a0a0a0; text-align:center; margin-top:10px; }
+
+        .leaflet-control-layers-expanded { background: rgba(20,20,20,0.8) !important; color: #fff !important; }
+        .leaflet-control-layers-list label { color:#fff !important; }
+    </style>
+</head>
+<body>
+
+<!-- SETTINGS PANEL -->
+<div class="settings-box">
+    <div class="logo"><img src="logo.png" alt="Suvathikan Logo"></div>
+    <h3>Settings ⚙️</h3>
+
+    <label>Map Layer:
+        <select id="layerSelect">
+            <option value="street">Street</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="terrain">Terrain</option>
+            <option value="satellite">Satellite</option>
+        </select>
+    </label>
+
+    <label>Temperature Unit:
+        <select id="unitSelect">
+            <option value="metric">°C</option>
+            <option value="imperial">°F</option>
+        </select>
+    </label>
+
+    <label>
+        <input type="checkbox" id="toggleLogo" checked>
+        Show Logo
+    </label>
+
+    <div class="contact">
+        Contact: +94 771236642<br>
+        Email: suvathikan2013119@gmail.com
+    </div>
+</div>
+
+<!-- WEATHER BOX -->
+<div class="weather-box">
+    <h2>Click any place 🌍</h2>
+    <p>Weather info appears here.</p>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+
+const API_KEY = "3729667eb86355595d2be48f76ccc8b0";
+let tempUnit = "metric";
+
+// MAP LAYERS
+const layers = {
+    street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+    dark: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_dark/{z}/{x}/{y}.png'),
+    light: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png'),
+    terrain: L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png'),
+    satellite: L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {subdomains:['mt0','mt1','mt2','mt3']})
+};
+
+// INIT MAP
+const map = L.map('map', { center:[20,0], zoom:2, layers:[layers.street] });
+L.control.layers(layers).addTo(map);
+
+// WEATHER ON CLICK
+let marker;
+map.on("click", async function(e) {
+    const lat = e.latlng.lat;
+    const lon = e.latlng.lng;
+
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=${tempUnit}`;
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const name = data.name || "Unknown";
+        const temp = data.main.temp;
+        const feels = data.main.feels_like;
+        const clouds = data.clouds.all;
+        const humidity = data.main.humidity;
+        const wind = data.wind.speed;
+        const cond = data.weather[0].description;
+
+        document.querySelector(".weather-box").innerHTML = `
+            <h2>${name}</h2>
+            <p><b>🌡 Temperature:</b> ${temp}${tempUnit==='metric'?'°C':'°F'}</p>
+            <p><b>🤒 Feels Like:</b> ${feels}${tempUnit==='metric'?'°C':'°F'}</p>
+            <p><b>🌥 Clouds:</b> ${clouds}%</p>
+            <p><b>💧 Humidity:</b> ${humidity}%</p>
+            <p><b>🌬 Wind:</b> ${wind} m/s</p>
+            <p><b>🌈 Condition:</b> ${cond}</p>
+        `;
+
+        if(marker) marker.remove();
+        marker = L.marker([lat, lon]).addTo(map)
+            .bindPopup(`<b>${name}</b><br>${temp}${tempUnit==='metric'?'°C':'°F'}<br>${cond}`)
+            .openPopup();
+
+    } catch(err){
+        document.querySelector(".weather-box").innerHTML =
+            "<h2>Error</h2><p>Unable to fetch weather data.</p>";
+    }
+});
+
+// SETTINGS CONTROLS
+document.getElementById("layerSelect").addEventListener("change", e=>{
+    const selected = e.target.value;
+    for(let l in layers){ map.removeLayer(layers[l]); }
+    layers[selected].addTo(map);
+});
+
+document.getElementById("unitSelect").addEventListener("change", e=>{
+    tempUnit = e.target.value;
+});
+
+document.getElementById("toggleLogo").addEventListener("change", e=>{
+    document.querySelector(".settings-box .logo").style.display = e.target.checked?'block':'none';
+});
+
+</script>
+</body>
+</html>
